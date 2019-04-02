@@ -11,6 +11,7 @@ class DoggieApp extends StatefulWidget {
 class _DoggieAppState extends State<DoggieApp> {
 
   DoggieBloc bloc;
+  final String SOCKETURL = 'ws://192.168.8.100:2000/';
 
   MaterialColor get appTheme => const MaterialColor(0xffFF3D7F, {
     50: const Color(0xffdbf0fc),

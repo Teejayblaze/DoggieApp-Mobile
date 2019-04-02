@@ -28,6 +28,7 @@ class _DoggieHomePageState extends State<DoggieHomePage> with SingleTickerProvid
   List<String> content = new List<String>();
   DoggieSearchBloc searchBloc;
   DoggieHomePageBloc homePageBloc;
+  DoggieBlocProvider appContext;
   bool isOpen = false;
 
   @override
@@ -43,7 +44,8 @@ class _DoggieHomePageState extends State<DoggieHomePage> with SingleTickerProvid
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    appTheme = DoggieBlocProvider.of(context).appTheme;
+    appContext = DoggieBlocProvider.of(context);
+    appTheme = appContext.appTheme;
     this._buildScatteredList(appTheme);
   }
 
@@ -58,6 +60,7 @@ class _DoggieHomePageState extends State<DoggieHomePage> with SingleTickerProvid
   Widget build(BuildContext context) {
     Size size = MediaQuery.of(context).size;
     _dhpa = new DoggieHomepageAnimation(_controller, size);
+
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
