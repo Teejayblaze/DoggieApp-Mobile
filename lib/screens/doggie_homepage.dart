@@ -1,44 +1,44 @@
 import 'package:flutter/material.dart';
+
+import 'package:doggie_app/animations/doggie_homepage_animation.dart';
+import 'package:doggie_app/model/doggie_dog.dart';
+import 'package:doggie_app/resources/doggie_repositories.dart';
+
 import 'package:doggie_app/utils/doggie_curvededged_rect.dart';
 import 'package:doggie_app/utils/doggie_bloc_provider.dart';
-import 'package:doggie_app/animations/doggie_homepage_animation.dart';
 import 'package:doggie_app/utils/doggie_custom_textformfield.dart';
+import 'package:doggie_app/utils/doggie_socketIO_impl.dart';
+import 'package:doggie_app/utils/doggie_homepage_content_layout.dart';
+
 import 'package:doggie_app/bloc/doggie_search_bloc.dart';
-import 'package:doggie_app/bloc/doggie_homepage_bloc.dart';
+import 'package:doggie_app/bloc/doggie_socket_bloc.dart';
 
 class DoggieHomePage extends StatefulWidget {
   @override
   _DoggieHomePageState createState() => _DoggieHomePageState();
 }
 
-// I had to deprecate the enumeration used to check the status of the animation and
-// setState() for the page but this lack optimization and utilize so much resources
-// by redrawing or repainting the entire widget tree.
-// However, we can achieve same goal by using a Stream with a better performance and optimization :)
-//enum SearchStatus {
-//  is_open,
-//  is_closed
-//}
-
 class _DoggieHomePageState extends State<DoggieHomePage> with SingleTickerProviderStateMixin {
   AnimationController _controller;
   DoggieHomepageAnimation _dhpa;
   MaterialColor appTheme;
   TextEditingController _searchTextEditingController = new TextEditingController();
-  List<String> content = new List<String>();
   DoggieSearchBloc searchBloc;
-  DoggieHomePageBloc homePageBloc;
   DoggieBlocProvider appContext;
+  DoggieSocketBloc<Dog> doggieSocketBloc;
+  DoggieSocketIOImpl doggieSocketIOImpl;
+  DoggieRepositories repositories;
+
+
   bool isOpen = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(vsync: this, duration: const Duration(seconds: 2));
-    content.addAll(generateItems(100));
     searchBloc = new DoggieSearchBloc();
-    homePageBloc = new DoggieHomePageBloc();
     searchBloc.searchSink.add(false);
+    this.repositories = new DoggieRepositories();
   }
 
   @override
@@ -46,13 +46,19 @@ class _DoggieHomePageState extends State<DoggieHomePage> with SingleTickerProvid
     super.didChangeDependencies();
     appContext = DoggieBlocProvider.of(context);
     appTheme = appContext.appTheme;
-    this._buildScatteredList(appTheme);
+    this.doggieSocketBloc = appContext.bloc;
+    this.doggieSocketIOImpl = appContext.socketIOImpl;
+    this.doggieSocketIOImpl.subscribe(channel: 'pets');
+    this.repositories.fillRepository(bloc: appContext.bloc);
+    this.repositories.fillAdvertRepository(bloc: appContext.bloc);
   }
 
   @override
   void dispose() {
     _controller.dispose();
     searchBloc.disposed();
+    doggieSocketBloc.dispose();
+    this.doggieSocketIOImpl.dispose();
     super.dispose();
   }
 
@@ -66,233 +72,143 @@ class _DoggieHomePageState extends State<DoggieHomePage> with SingleTickerProvid
         fit: StackFit.expand,
         children: _buildWidgets(size, appTheme),
       ),
+      bottomNavigationBar: BottomNavigationBar(items: _buildBottomNavigationItem().toList()),
     );
   }
 
   List<Widget> _buildWidgets(Size size, MaterialColor appTheme) => [
-    _buildAppBar(size, appTheme),
+//    _buildTopAdvert(size),
     _buildContentBody(size),
+    _buildAppBar(size, appTheme),
   ];
 
   Positioned _buildAppBar(Size size, MaterialColor appTheme) => Positioned(
     top: 0.0,
     width: size.width,
     child: ClipPath(
+      clipBehavior: Clip.antiAlias,
       clipper: DoggieCurvedEdgedRect(),
       child: Container(
-        height: this._dhpa.growAppBar.value,
+        height: 138.0,
         padding: EdgeInsets.only(top: 30.0),
         decoration: BoxDecoration(color: appTheme[900]),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Container(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Align(
-                    alignment: Alignment.topLeft,
-                    child: IconButton(
-                      icon: Icon(Icons.menu),
-//                  AnimatedIcon(icon: AnimatedIcons.close_menu, progress: null),
-                      onPressed: (){},
-                      color: appTheme[50],
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: Text("Doggie", style: TextStyle(fontWeight: FontWeight.bold, color: appTheme[50], fontSize: 38.0),),
-                  ),
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: IconButton(
-                      icon: Icon(Icons.search),
-                      onPressed: _animateSearchTextField,
-                      color: appTheme[50],),
-//                    searchBloc.searchStream ? appTheme[800] :
-                  ),
-                ],
-              ),
-            ),
-            Container(
-//              width: size.width,
-              padding: EdgeInsets.only(left: 10.0, right: 10.0),
-              child: Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.diagonal3Values(this._dhpa.searchIn.value, this._dhpa.searchIn.value, 1.0),
-                child:DoggieCustomTextFormField.createCapsuleTextField(
-                    controller: _searchTextEditingController,
-                    onSaved: _onSaveSearch,
-                    validator: null,
-                    icon: Icons.search,
-                    hintText: "Smart DOG Search...",
-                    appTheme: appTheme
-                ),
-              ) ,
-            )
-          ],
+          children: _buildAppBarIconText() + _buildAppBarTextField(),
         )
       ),
     ),
   );
 
-  void _onSaveSearch(String text) {
+  void _onSaveSearch(String text) {}
 
-  }
+  Positioned _buildTopAdvert(Size size) => Positioned(
+    width: size.width,
+    height: 80,
+    top: 150.0,
+    child: StreamBuilder<List<Dog>>(
+        stream: doggieSocketBloc.topAdvertStream,
+        initialData: null,
+        builder: (BuildContext context, AsyncSnapshot snapshot) {
+          if (snapshot.hasData) return ListView.builder(
+              itemCount: snapshot.data.length,
+              scrollDirection: Axis.horizontal,
+              itemBuilder: (BuildContext context, int index) => Material(
+                elevation: 20.0,
+                child: Container(
+                  height: 80,
+                  margin: EdgeInsets.symmetric(horizontal: 10.0),
+                  decoration: BoxDecoration(
+                    color: appTheme[200],
+                    borderRadius: BorderRadius.all(Radius.circular(8.0)),
+                  ),
+                  child: Image.network(snapshot.data[index].petPicURL, fit: BoxFit.cover,),
+                ),
+              )
+          );
 
-  void _animateSearchTextField() {
-
-//    bool isOpen = await searchBloc.searchStream.;
-
-    if (!isOpen) {
-      _controller.forward();
-      this._dhpa.searchIn.addListener((){});
-      isOpen = true;
-    } else {
-      _controller.reverse();
-      isOpen = false;
-    }
-
-    print("searchBloc.searchStream: ${searchBloc.searchStream}, isOpen: $isOpen");
-
-//    searchBloc.searchStream.listen((bool isOpen) {
-//      print("isOpen: $isOpen");
-//        if (!isOpen) {
-//          _controller.forward();
-//          searchBloc.searchSink.add(true);
-//        } else {
-//          _controller.reverse();
-//          searchBloc.searchSink.add(false);
-//        }
-//    });
-
-//    if ( searchBloc.searchStream. ) {
-//
-//      this._dhpa.searchIn.addListener((){});
-//
-////      this.setState(() { searchStatus = SearchStatus.is_open; });
-//    } else if ( searchStatus == SearchStatus.is_open ) {
-//
-//
-////      this.setState(() { searchStatus = SearchStatus.is_closed; });
-//    }
-  }
+          return Container(alignment: Alignment.center, child: CircularProgressIndicator(),);
+        }
+      ),
+  );
 
 
   Positioned _buildContentBody(Size size) => Positioned(
     width: size.width,
-    top: 150.0,
+    top: 130.0,
     height: (size.height - 150.0),
     child: Container(
+      color: Colors.transparent,
+      padding: EdgeInsets.only(top: 10.0),
       child: SingleChildScrollView(
-        child: StreamBuilder<List<Widget>>(
-            initialData: [],
-            stream: homePageBloc.homepageStream,
+        physics: BouncingScrollPhysics(),
+        child: StreamBuilder<List<Dog>>(
+            initialData: null,
+            stream: appContext.bloc.socketStream,
             builder: (BuildContext context, AsyncSnapshot snapshot) {
-              if (snapshot.hasData) return Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: snapshot.data
+              if (snapshot.hasData) return DoggieHomePageContentLayout(dogs: snapshot.data);
+              return Container(
+                child: CircularProgressIndicator(),
+                alignment: Alignment.center,
+                padding: EdgeInsets.symmetric(vertical: 20.0),
               );
-              return Center(child: CircularProgressIndicator(),);
             },
           ),
       )
     )
   );
 
-  List<String> generateItems(int len) => List<String>.generate(len, (int index) => "$index - Dog" ).toList();
-
-  void _buildScatteredList(MaterialColor appTheme) {
-
-    int numColsInRow = 3;
-    int numIteration = int.parse((content.length/numColsInRow).ceil().toString());
-    int cid = 0;
-    int len = content.length;
-
-    print("numColsInRow: $numColsInRow, numIteration: $numIteration");
-    List<Container> parentList = [];
-
-    for( int i = 0; i < numIteration; i++ ) {
-
-      List<Container> subChildren = [];
-
-      for( int j = 0; j < numColsInRow; j++ ) {
-        if ( cid >= len ) break;
-        if ( j % 2 != 0 ) {
-          subChildren.add(
-            Container(
-              margin: EdgeInsets.fromLTRB(0.0, 40.0, 0.0, 0.0),
-              child: GestureDetector(
-                child: Hero(
-                  tag: content[cid],
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      CircleAvatar(
-                        radius: 53.0,
-                        backgroundColor: appTheme[800],
-                        child: Text(content[cid][0] + content[cid][1], style: TextStyle(fontWeight: FontWeight.bold,),),
-                      ),
-                      SizedBox(height: 5.0,),
-                      Align(
-                        alignment: Alignment.center,
-                        child: Text(content[cid]),
-                      )
-                    ],
-                  ),
-                ),
-                onTap: () => null,
-              ),
-            ),
-          );
-        } else {
-          subChildren.add(
-            Container(
-              margin: EdgeInsets.fromLTRB(0.0, 0.0, 0.0, 0.0),
-              child: GestureDetector(
-                child: Hero(
-                    tag: content[cid],
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          CircleAvatar(
-                            radius: 53.0,
-                            backgroundColor: appTheme[800],
-                            child: Text(content[cid][0] + content[cid][1], style: TextStyle(fontWeight: FontWeight.bold,),),
-                          ),
-                          SizedBox(height: 5.0,),
-                          Align(
-                            alignment: Alignment.center,
-                            child: Text(content[cid]),
-                          )
-                        ],
-                      ),
-                ),
-                onTap: () => null,
-              ),
-            ),
-          );
-        }
-
-        cid++;
-      }
-
-      Container container = Container(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          mainAxisSize: MainAxisSize.max,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: subChildren.toList(),
+  List<Container> _buildAppBarIconText() => [Container(
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Align(
+          alignment: Alignment.topLeft,
+          child: IconButton(icon: Icon(Icons.menu), onPressed: (){}, color: appTheme[50],),
         ),
-      );
+        Align(
+          alignment: Alignment.topCenter,
+          child: Text("Doggie", style: TextStyle(fontWeight: FontWeight.bold, color: appTheme[50], fontSize: 38.0),),
+        ),
+        Align(
+          alignment: Alignment.topRight,
+          child: IconButton(icon: Icon(Icons.notifications), onPressed: (){}, color: appTheme[50],),
+        ),
+      ],
+    ),
+  )];
 
-      parentList.add(container);
-    }
-    homePageBloc.homepageSink.add(parentList.toList());
-  }
+
+  List<Container> _buildAppBarTextField() => [Container(
+    padding: EdgeInsets.only(left: 10.0, right: 10.0),
+    child: DoggieCustomTextFormField.createCapsuleTextField(
+      controller: _searchTextEditingController,
+      onSaved: _onSaveSearch,
+      validator: null,
+      icon: Icons.search,
+      hintText: "Smart DOG Search...",
+      appTheme: appTheme
+    ),
+  )];
+
+
+  List<BottomNavigationBarItem> _buildBottomNavigationItem() => [
+    BottomNavigationBarItem(
+        icon: Icon(Icons.dashboard),
+        title: Text("Train Pet", style: TextStyle(fontWeight: FontWeight.w600),)
+    ),
+    BottomNavigationBarItem(
+        icon: Icon(Icons.shopping_cart),
+        title: Text("Buy Pet", style: TextStyle(fontWeight: FontWeight.w600),)
+    ),
+    BottomNavigationBarItem(
+        icon: Icon(Icons.attach_money),
+        title: Text("Sell Pet", style: TextStyle(fontWeight: FontWeight.w600),)
+    ),
+  ];
+
+
+//  List<String> generateItems(int len) => List<String>.generate(len, (int index) => "$index - Dog" ).toList();
 }

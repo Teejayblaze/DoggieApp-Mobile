@@ -6,7 +6,7 @@ class DoggieHomepageAnimation {
     new CurvedAnimation(parent: controller, curve: Curves.elasticIn)
   ),
 
-  growAppBar = new Tween<double>(begin: 118.0, end: 150.0).animate(
+  growAppBar = new Tween<double>(begin: 118.0, end: 138.0).animate(
       new CurvedAnimation(parent: controller, curve: Interval(0.0, 0.2, curve: Curves.bounceOut))
   ),
 

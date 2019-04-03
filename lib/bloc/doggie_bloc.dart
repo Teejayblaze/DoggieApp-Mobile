@@ -4,16 +4,16 @@ import 'package:doggie_app/model/doggie_dog.dart';
 
 class DoggieBloc {
   
-  final StreamController<List<Dog>> _dogStreamController = new StreamController<List<Dog>>.broadcast();
+  final StreamController _dogStreamController = new StreamController.broadcast();
 
   Stream<List<Dog>> get getDogStream => _dogStreamController.stream;
-  StreamSink<List<Dog>> get getDogStreamSink => _dogStreamController.sink;
+  StreamSink<Dog> get getDogStreamSink => _dogStreamController.sink;
 
   DoggieBloc() {
     this._dogStreamController.stream.listen(_onData);
   }
 
-  _onData(List<Dog> dog) {}  
+  _onData(Dog dog) {}
 
   dispose() {
     this._dogStreamController.close();

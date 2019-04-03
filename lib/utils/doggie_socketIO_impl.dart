@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_socket_io/flutter_socket_io.dart';
 import 'package:flutter_socket_io/socket_io_manager.dart';
 import 'package:flutter/material.dart';
+import 'package:doggie_app/model/doggie_dog.dart';
 
 class DoggieSocketIOImpl {
 
@@ -12,12 +15,12 @@ class DoggieSocketIOImpl {
 
   SocketIO socketIO;
   final String domain;
-  final Sink streamSinkCallback;
+  StreamSink streamSinkCallback;
   String channel;
 
   static void _socketStatus(dynamic data) {
 //    for debugging sake, let's know if our socket handshake with the server is successful.
-    print("data: $data");
+    print("handshake with serve, data: $data");
   }
 
   void subscribe({@required String channel}) {
@@ -28,6 +31,7 @@ class DoggieSocketIOImpl {
   }
 
   void _callback(dynamic receivedData) {
+    print("Transmitting received data $receivedData");
     this.streamSinkCallback.add(receivedData);
   }
 
@@ -37,7 +41,7 @@ class DoggieSocketIOImpl {
     }
   }
 
-  void disposed() {
+  void dispose() {
     if (this.socketIO != null) {
       SocketIOManager().destroySocket(this.socketIO);
     }

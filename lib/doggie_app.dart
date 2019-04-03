@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:doggie_app/utils/doggie_bloc_provider.dart';
 import 'package:doggie_app/screens/doggie_splashscreen.dart';
-import 'package:doggie_app/bloc/doggie_bloc.dart';
+import 'package:doggie_app/utils/doggie_socketIO_impl.dart';
+import 'package:doggie_app/bloc/doggie_socket_bloc.dart';
+import 'package:doggie_app/model/doggie_dog.dart';
+import 'package:doggie_app/constant/doggie_ipconfig_constant.dart';
 
 class DoggieApp extends StatefulWidget {
   @override
@@ -10,8 +13,9 @@ class DoggieApp extends StatefulWidget {
 
 class _DoggieAppState extends State<DoggieApp> {
 
-  DoggieBloc bloc;
-  final String SOCKETURL = 'ws://192.168.8.100:2000/';
+  DoggieSocketBloc<Dog> bloc;
+  DoggieSocketIOImpl socketIOImpl;
+  final String socketUrl = IP;
 
   MaterialColor get appTheme => const MaterialColor(0xffFF3D7F, {
     50: const Color(0xffdbf0fc),
@@ -28,9 +32,11 @@ class _DoggieAppState extends State<DoggieApp> {
 
   @override
   Widget build(BuildContext context){
-    bloc = new DoggieBloc();
+    bloc = new DoggieSocketBloc<Dog>();
+    socketIOImpl = new DoggieSocketIOImpl(domain: socketUrl, streamSinkCallback: bloc.socketSink);
     return DoggieBlocProvider(
       bloc: bloc,
+      socketIOImpl: socketIOImpl,
       appTheme: this.appTheme,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
